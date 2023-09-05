@@ -27,3 +27,6 @@ would look close to the real VHS noise:
 * Hold MOUSE1 (left) and drag left-to-right to adjust overall noise scale
 * Hold MOUSE2 (right) and drag left-to-right to adjust bottom VHS-like noise scale
 * Press MOUSE3 (middle) to reset values to default.
+
+# TODO
+* Add CRT burn-in or something
