@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "glad/gl.h"
 
 #define WIDTH 320
@@ -10,7 +11,8 @@
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
-#define DEFAULT_THRES 0.90
+#define DEFAULT_PARAM1 0.85
+#define DEFAULT_PARAM2 0.00
 
 #define STR1(x) #x
 #define STR(x) STR1(x)
@@ -19,9 +21,19 @@ struct pass {
     unsigned int fb;
     unsigned int tex;
     unsigned int prog;
-    unsigned int uthres;
-    unsigned int utime;
-    unsigned int ufb;
+    unsigned int u_size;
+    unsigned int u_time;
+    unsigned int u_params;
+    unsigned int u_pass;
+};
+
+struct timings {
+    float curtime;
+    float prevtime;
+    float slowtime;
+    float frametime;
+    float frametime_avg;
+    float perftime;
 };
 
 static void info(const char *fmt, ...)
@@ -45,30 +57,59 @@ static void *malloc_or_die(size_t n)
     return result;
 }
 
-static unsigned int make_shader(unsigned int stage, const char *source)
+static char *malloc_file(const char *path)
+{
+    size_t length;
+    FILE *file = fopen(path, "r");
+    char *buffer;
+
+    if(file) {
+        fseek(file, 0, SEEK_END);
+        length = ftell(file) + 1;
+        fseek(file, 0, SEEK_SET);
+        buffer = malloc_or_die(length);
+        memset(buffer, 0, length);
+        fread(buffer, 1, length - 1, file);
+        fclose(file);
+        return buffer;
+    }
+
+    return NULL;
+}
+
+static unsigned int make_shader(unsigned int stage, const char *path)
 {
     int status;
     char *infolog;
-    unsigned int shader = glCreateShader(stage);
-    glShaderSource(shader, 1, &source, NULL);
-    glCompileShader(shader);
+    char *source = malloc_file(path);
+    unsigned int shader;
 
-    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &status);
-    if(status > 1) {
-        infolog = malloc_or_die(status);
-        glGetShaderInfoLog(shader, status, NULL, infolog);
-        info("%s\n%s", source, infolog);
-        free(infolog);
+    if(source) {
+        shader = glCreateShader(stage);
+        glShaderSource(shader, 1, ((const GLchar **)&source), NULL);
+        glCompileShader(shader);
+
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &status);
+        if(status > 1) {
+            infolog = malloc_or_die(status);
+            glGetShaderInfoLog(shader, status, NULL, infolog);
+            info("%s\n%s", source, infolog);
+            free(infolog);
+        }
+
+        free(source);
+
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+
+        if(status == GL_FALSE) {
+            glDeleteShader(shader);
+            return 0;
+        }
+
+        return shader;
     }
 
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-
-    if(status == GL_FALSE) {
-        glDeleteShader(shader);
-        return 0;
-    }
-
-    return shader;
+    return 0;
 }
 
 static unsigned int make_program(const char *vs, const char *fs)
@@ -132,9 +173,11 @@ static void init_pass(struct pass *p, const char *vs, const char *fs)
         abort();
     }
 
-    p->uthres = glGetUniformLocation(p->prog, "thres");
-    p->utime = glGetUniformLocation(p->prog, "curtime");
-    p->ufb = glGetUniformLocation(p->prog, "pfb");
+    /* Fetch uniform locations */
+    p->u_size = glGetUniformLocation(p->prog, "size");
+    p->u_time = glGetUniformLocation(p->prog, "time");
+    p->u_params = glGetUniformLocation(p->prog, "params");
+    p->u_pass = glGetUniformLocation(p->prog, "pass");
 }
 
 static void deinit_pass(struct pass *p)
@@ -144,60 +187,30 @@ static void deinit_pass(struct pass *p)
     glDeleteTextures(1, &p->tex);
 }
 
-static const char *pass_vs =
-    "#version 330 core\n"
-    "out vec2 uv;"
-    "const vec2 verts[8] = vec2[8](\n"
-    "vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, -1.0),\n"
-    "vec2(1.0, 1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0), vec2(-1.0, 1.0));\n"
-    "void main(void){\n"
-    "uv = 0.5 * (vec2(1.0, 1.0) + verts[gl_VertexID]);\n"
-    "gl_Position = vec4(verts[gl_VertexID], vec2(0.0, 1.0));}\n";
+static void on_key(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    /* unused */ (void)scancode;
+    /* unused */ (void)mods;
 
-static const char *pass1_fs =
-    "#version 330 core\n"
-    "in vec2 uv;\n"
-    "layout(location = 0) out vec4 target;\n"
-    "uniform float thres\n;"
-    "uniform float curtime;\n"
-    "float rand(vec3 v) { float r = dot(sin(v), vec3(12.9898, 78.233, 37.719)); return fract(sin(r) * 143758.5453); }\n"
-    "void main(void) {\n"
-    "float cutoff = smoothstep(0.98, 0.97, uv.x);\n"
-    "float noise = step(clamp(thres, 0.01, 0.99), rand(vec3(100.0 * uv, curtime)));"
-    "float color = 5.0 * cutoff * noise;\n"
-    "target = vec4(vec3(color), 1.0);}\n";
-
-static const char *pass2_fs =
-    "#version 330 core\n"
-    "in vec2 uv;\n"
-    "layout(location = 0) out vec4 target;\n"
-    "uniform float curtime;\n"
-    "uniform sampler2D pfb;\n"
-    "void main(void) {\n"
-    "const int steps = 16;\n"
-    "const float fsteps = float(steps);\n"
-    "float st = 1.0 / float(" STR(WIDTH) ");\n"
-    "target = vec4(0.0, 0.0, 0.0, 0.0);\n"
-    "for(int i = 1; i <= steps; ++i)\n"
-    "target += texture(pfb, uv - vec2(float(i) * st, 0.0)) / float(i) * 16.0;\n"
-    "target += texture(pfb, uv);\n"
-    "target /= fsteps;}\n";
+    if(action == GLFW_PRESS && key == GLFW_KEY_ESCAPE) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        return;
+    }
+}
 
 int main(void)
 {
-    float curtime;
-    float lasttime;
-    float frametime;
-    float perftime;
-    float frametime_avg;
-    float slowtime;
+    struct timings t;
     GLFWwindow *window;
+    unsigned int vaobj;
     struct pass passes[2];
-    unsigned int vao;
-    int width, height;
-    double mx, my;
-    double thres = DEFAULT_THRES;
+    double params[2];
+    double mouse[2];
+    int size[2];
 
+    /* Default params */
+    params[0] = DEFAULT_PARAM1;
+    params[1] = DEFAULT_PARAM2;
 
     if(!glfwInit()) {
         info("glfw: init failed");
@@ -215,6 +228,8 @@ int main(void)
         abort();
     }
 
+    glfwSetKeyCallback(window, &on_key);
+
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
@@ -223,47 +238,55 @@ int main(void)
         abort();
     }
 
-    init_pass(&passes[0], pass_vs, pass1_fs);
-    init_pass(&passes[1], pass_vs, pass2_fs);
+    glGenVertexArrays(1, &vaobj);
 
-    glGenVertexArrays(1, &vao);
+    init_pass(&passes[0], "pass_v.vert", "pass_1.frag");
+    init_pass(&passes[1], "pass_v.vert", "pass_2.frag");
 
-    curtime = 0.0f;
-    lasttime = glfwGetTime();
-    frametime = 0.0f;
-    perftime = 0.0f;
-    frametime_avg = 0.0f;
+    t.curtime = 0.0f;
+    t.prevtime = glfwGetTime();
+    t.slowtime = 0.0f;
+    t.frametime = 0.0f;
+    t.frametime_avg = 0.0f;
+    t.perftime = 0.0f;
 
     while(!glfwWindowShouldClose(window)) {
-        curtime = glfwGetTime();
-        frametime = curtime - lasttime;
-        frametime_avg += frametime;
-        frametime_avg *= 0.5f;
-        lasttime = curtime;
-        slowtime = 0.001f * curtime;
+        t.curtime = glfwGetTime();
+        t.slowtime = t.curtime * 0.001f;
+        t.frametime = (t.curtime - t.prevtime);
+        t.prevtime = t.curtime;
+        t.frametime_avg += t.frametime;
+        t.frametime_avg *= 0.5f;
 
-        if(curtime > perftime) {
-            info("%.03fms / %.03f FPS", 1000.0f * frametime_avg, 1.0f / frametime_avg);
-            perftime = curtime + 1.0f;
+        if(t.curtime >= t.perftime) {
+            info("%.04fms / %.03f FPS", 1000.0f * t.frametime_avg, 1.0f / t.frametime_avg);
+            t.perftime = t.curtime + 1.0f;
         }
 
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwGetCursorPos(window, &mx, &my);
-        mx /= width;
-        my /= height;
+        glfwGetFramebufferSize(window, &size[0], &size[1]);
+        glfwGetCursorPos(window, &mouse[0], &mouse[1]);
+
+        /* Mouse positions are relative */
+        mouse[0] /= size[0];
+        mouse[1] /= size[1];
 
         if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-            /* Update threshold */
-            thres = 1.0 - mx;
+            /* Overall noise factor */
+            params[0] = 1.0 - mouse[0];
         }
 
         if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
-            /* Reset threshold */
-            thres = DEFAULT_THRES;
+            /* Bottom VHS-like noise */
+            params[1] = mouse[0];
+        }
+
+        if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) {
+            params[0] = DEFAULT_PARAM1;
+            params[1] = DEFAULT_PARAM2;
         }
 
         /* Setup environment */
-        glBindVertexArray(vao);
+        glBindVertexArray(vaobj);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
         /* Render pass 1 */
@@ -271,8 +294,10 @@ int main(void)
         glBindFramebuffer(GL_FRAMEBUFFER, passes[0].fb);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(passes[0].prog);
-        glUniform1f(passes[0].uthres, thres);
-        glUniform1f(passes[0].utime, slowtime);
+        glUniform2f(passes[0].u_size, WIDTH, HEIGHT);
+        glUniform2f(passes[0].u_time, t.curtime, t.slowtime);
+        glUniform2f(passes[0].u_params, params[0], params[1]);
+        glUniform1i(passes[0].u_pass, 0); /* unused */
         glDrawArrays(GL_TRIANGLES, 0, 8);
 
         /* Render pass 2 */
@@ -282,21 +307,23 @@ int main(void)
         glUseProgram(passes[1].prog);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, passes[0].tex);
-        glUniform1f(passes[1].utime, slowtime);
-        glUniform1i(passes[1].ufb, 0);
+        glUniform2f(passes[1].u_size, WIDTH, HEIGHT);
+        glUniform2f(passes[1].u_time, t.curtime, t.slowtime);
+        glUniform2f(passes[1].u_params, params[0], params[1]);
+        glUniform1i(passes[1].u_pass, 0); /* GL_TEXTURE0 */
         glDrawArrays(GL_TRIANGLES, 0, 8);
 
         /* Blit to screen */
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, size[0], size[1]);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         glBindFramebuffer(GL_READ_FRAMEBUFFER, passes[1].fb);
-        glBlitFramebuffer(0, 0, WIDTH, HEIGHT, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        glBlitFramebuffer(0, 0, WIDTH, HEIGHT, 0, 0, size[0], size[1], GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    glDeleteVertexArrays(1, &vao);
+    glDeleteVertexArrays(1, &vaobj);
 
     deinit_pass(&passes[1]);
     deinit_pass(&passes[0]);
