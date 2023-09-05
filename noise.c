@@ -11,7 +11,7 @@
 
 #define DEFAULT_WIDTH 640
 #define DEFAULT_HEIGHT 480
-#define DEFAULT_PARAM1 0.85
+#define DEFAULT_PARAM1 0.95
 #define DEFAULT_PARAM2 0.00
 
 #define STR1(x) #x

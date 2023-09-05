@@ -18,12 +18,20 @@ float rand(float x, float y)
 
 void main(void)
 {
-    float noise = rand(uv.x, uv.y);
-    float thres = min(clamp(params.x, 0.0, 1.0), 1.0 - 0.5 * clamp(params.y, 0.0, 1.0) * sin(3.14159265359 * pow(1.025 - uv.y, 8.0)));
+    vec2 pv = vec2(0.0, 0.0);
+    pv.x = clamp(params.x, 0.0, 1.0);
+    pv.y = clamp(params.y, 0.0, 1.0);
+
+    float noise = rand(100.0 * uv.x, 100.0 * uv.y);
+    float nfx = rand(noise, uv.x) + 0.5;
+    float nfy = rand(noise, uv.y) + 0.5;
+    float nfz = rand(nfx, nfy) + 0.5;
+
+    float thres = min(pv.x, 1.0 - 0.5 * pv.y * sin(3.14159265359 * pow(1.0125 - uv.y, 8.0)));
     float value = step(thres, noise);
-    vec4 prev = texture(pass, uv);
-    target.x = value;
-    target.y = value;
-    target.z = value;
+
+    target.x = value * nfx;
+    target.y = value * nfy;
+    target.z = value * nfz;
     target.w = 1.0;
 }
