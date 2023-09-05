@@ -38,8 +38,12 @@ With some more randomness in the way you define the speck color
 and the amount of blur you can get closer to the real thing:  
 ![](2023-09-06_00-40.png)
 
+# Requirements (Windows)
+* WSL or whatever the hell windows users use these days
+
 # Requirements
 * A GPU
+* A UNIX-like system
 * GLFW (`pacman -S glfw-x11` or `pacman -S glfw-wayland` or something else I don't care)
 
 # Building
