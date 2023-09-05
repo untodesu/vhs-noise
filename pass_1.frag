@@ -22,10 +22,10 @@ void main(void)
     pv.x = clamp(params.x, 0.0, 1.0);
     pv.y = clamp(params.y, 0.0, 1.0);
 
-    float noise = rand(100.0 * uv.x, 100.0 * uv.y);
-    float nfx = rand(noise, uv.x) + 0.5;
-    float nfy = rand(noise, uv.y) + 0.5;
-    float nfz = rand(nfx, nfy) + 0.5;
+    float noise = rand(5.0 * uv.x, 5.0 * uv.y);
+    float nfx = 0.6 * rand(noise, uv.x) + 0.7;
+    float nfy = 0.6 * rand(noise, uv.y) + 0.7;
+    float nfz = 0.6 * rand(nfx, nfy) + 0.7;
 
     float thres = min(pv.x, 1.0 - 0.5 * pv.y * sin(3.14159265359 * pow(1.0125 - uv.y, 8.0)));
     float value = step(thres, noise);

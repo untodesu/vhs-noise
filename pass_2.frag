@@ -20,15 +20,17 @@ float rand(float x, float y)
 
 void main(void)
 {
+    float fx = rand(uv.x, uv.y);
+    float fy = rand(fx, uv.x);
+    float fz = rand(fx, uv.y);
     float step = 1.0 / size.x;
-    float factor = rand(uv.x, uv.y);
-    float fsteps = steps + ceil(4.0 * factor);
+    float fsteps = 4.0 + ceil(steps * fx);
 
     target = texture(pass, uv);
 
     for(float i = 0.1; i <= fsteps; ++i) {
-        target.xyz += texture(pass, uv + vec2(i * step, 0.0)).xyz / i * 16.0 * factor;
-        target.xyz += texture(pass, uv - vec2(i * step, 0.0)).xyz / i * 32.0 * factor;
+        target.xyz += texture(pass, uv + vec2(i * step, 0.0)).xyz / i * 16.0 * fy;
+        target.xyz += texture(pass, uv - vec2(i * step, 0.0)).xyz / i * 32.0 * fz;
     }
 
     target.xyz /= fsteps;
