@@ -26,6 +26,25 @@ the noise texture a little bit to add "tails") the final picture
 would look close to the real VHS noise:  
 ![](2023-09-05_21-56_1.png)  
 
+# Requirements
+* A GPU
+* GLFW (`pacman -S glfw-x11` or `pacman -S glfw-wayland` or something else I don't care)
+
+# Building
+```
+cc gl.c noise.c -oa.out -lglfw -I.
+```
+
+# Running
+```
+./a.out
+```
+
+Or, with NVIDIA prime (laptop moment):  
+```
+prime-run ./a.out
+```
+
 # App controls
 * Hold MOUSE1 (left) and drag left-to-right to adjust overall noise scale
 * Hold MOUSE2 (right) and drag left-to-right to adjust bottom VHS-like noise scale
