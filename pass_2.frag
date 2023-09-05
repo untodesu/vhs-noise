@@ -17,7 +17,7 @@ void main(void)
 
     target = vec4(0.0, 0.0, 0.0, 1.0);
     for(float i = 1.0; i <= steps; ++i)
-        target.xyz += texture(pass, uv - vec2(i * step, 0.0)).xyz / i * 16.0;
+        target.xyz += texture(pass, uv - vec2(i * step, 0.0)).xyz / i * 32.0;
     target.xyz += texture(pass, uv).xyz;
     target.xyz /= steps;
 }
