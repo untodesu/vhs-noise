@@ -19,7 +19,7 @@ float rand(float x, float y)
 void main(void)
 {
     float noise = rand(uv.x, uv.y);
-    float thres = min(params.x, 1.0 - 0.5 * params.y * sin(3.14159265359 * pow(1.025 - uv.y, 8.0)));
+    float thres = min(clamp(params.x, 0.0, 1.0), 1.0 - 0.5 * clamp(params.y, 0.0, 1.0) * sin(3.14159265359 * pow(1.025 - uv.y, 8.0)));
     float value = step(thres, noise);
     vec4 prev = texture(pass, uv);
     target.x = value;

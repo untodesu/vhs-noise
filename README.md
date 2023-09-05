@@ -6,6 +6,9 @@ authentic-ish approximate VHS noise.
 ![](2023-09-05_21-49_1.png)  
 ![](2023-09-05_21-50.png)  
 
+* [Video demo](https://youtu.be/Z30cKoFvha4)
+* Initial shader on [Shadertoy](https://www.shadertoy.com/view/ctSfRm)
+
 # Basics
 VHS noise originates from physical imperfections
 of the analog format:  
