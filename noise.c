@@ -186,12 +186,18 @@ static const char *pass2_fs =
 int main(void)
 {
     float curtime;
+    float lasttime;
+    float frametime;
+    float perftime;
+    float frametime_avg;
+    float slowtime;
     GLFWwindow *window;
     struct pass passes[2];
     unsigned int vao;
     int width, height;
     double mx, my;
     double thres = DEFAULT_THRES;
+
 
     if(!glfwInit()) {
         info("glfw: init failed");
@@ -217,15 +223,30 @@ int main(void)
         abort();
     }
 
-    /* Setup pass 1 */
-    info("initializing pass 1");
     init_pass(&passes[0], pass_vs, pass1_fs);
     init_pass(&passes[1], pass_vs, pass2_fs);
 
     glGenVertexArrays(1, &vao);
 
+    curtime = 0.0f;
+    lasttime = glfwGetTime();
+    frametime = 0.0f;
+    perftime = 0.0f;
+    frametime_avg = 0.0f;
+
     while(!glfwWindowShouldClose(window)) {
-        curtime = glfwGetTime() / 1000.0;
+        curtime = glfwGetTime();
+        frametime = curtime - lasttime;
+        frametime_avg += frametime;
+        frametime_avg *= 0.5f;
+        lasttime = curtime;
+        slowtime = 0.001f * curtime;
+
+        if(curtime > perftime) {
+            info("%.03fms / %.03f FPS", 1000.0f * frametime_avg, 1.0f / frametime_avg);
+            perftime = curtime + 1.0f;
+        }
+
         glfwGetFramebufferSize(window, &width, &height);
         glfwGetCursorPos(window, &mx, &my);
         mx /= width;
@@ -251,7 +272,7 @@ int main(void)
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(passes[0].prog);
         glUniform1f(passes[0].uthres, thres);
-        glUniform1f(passes[0].utime, curtime);
+        glUniform1f(passes[0].utime, slowtime);
         glDrawArrays(GL_TRIANGLES, 0, 8);
 
         /* Render pass 2 */
@@ -261,7 +282,7 @@ int main(void)
         glUseProgram(passes[1].prog);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, passes[0].tex);
-        glUniform1f(passes[1].utime, curtime);
+        glUniform1f(passes[1].utime, slowtime);
         glUniform1i(passes[1].ufb, 0);
         glDrawArrays(GL_TRIANGLES, 0, 8);
 
@@ -274,6 +295,8 @@ int main(void)
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    glDeleteVertexArrays(1, &vao);
 
     deinit_pass(&passes[1]);
     deinit_pass(&passes[0]);
