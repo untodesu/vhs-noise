@@ -272,12 +272,12 @@ int main(void)
 
         if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             /* Overall noise factor */
-            params[0] = 1.0 - mouse[0];
+            params[0] = 1.0 - 0.25 * mouse[0];
         }
 
         if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
             /* Bottom VHS-like noise */
-            params[1] = mouse[0];
+            params[1] = 0.5 * mouse[0];
         }
 
         if(glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) {
